@@ -374,6 +374,40 @@ NAN_METHOD(UGCUnsubscribe) {
   info.GetReturnValue().Set(Nan::Undefined());
 }
 
+NAN_METHOD(UGCSetItemTags) {
+  Nan::HandleScope scope;
+  // 获取发布id
+  PublishedFileId_t published_file_id = utils::strToUint64(
+      *(v8::String::Utf8Value(info[0])));
+  std::vector<std::string> tags_scratch;
+  const char* tags[100];
+
+  v8::Local<v8::Array> tags_array = info[2].As<v8::Array>();
+  if (tags_array->Length() > greenworks::WorkshopFileProperties::MAX_TAGS) {
+    THROW_BAD_ARGS("The length of 'tags' must be less than 100.");
+  }
+  for (uint32_t i = 0; i < tags_array->Length(); ++i) {
+    if (!tags_array->Get(i)->IsString())
+      THROW_BAD_ARGS("Bad arguments");
+    v8::String::Utf8Value tag(tags_array->Get(i));
+    tags_scratch.push_back(*tag);
+    tags[i] = tags_scratch.back().c_str();
+  }
+  SteamParamStringArray_t tagss;
+  tagss.m_nNumStrings = tags_scratch.size();
+  tagss.m_ppStrings = reinterpret_cast<const char**>(&tags);
+  PublishedFileUpdateHandle_t update_handle =
+      SteamRemoteStorage()->CreatePublishedFileUpdateRequest(
+          published_file_id);
+  UGCUpdateHandle_t ugc_update_handle = SteamUGC()->StartItemUpdate(info[1]->Int32Value(), published_file_id);
+  
+  if(SteamUGC()->SetItemTags(ugc_update_handle, &tagss)){
+    SteamUGC()->SubmitItemUpdate(ugc_update_handle, NULL);
+  }
+  //info.GetReturnValue().Set(SteamRemoteStorage()->UpdatePublishedFileTags(update_handle, &tagss));
+  info.GetReturnValue().Set(Nan::Undefined());
+}
+
 void RegisterAPIs(v8::Local<v8::Object> exports) {
   InitUgcMatchingTypes(exports);
   InitUgcQueryTypes(exports);
@@ -408,6 +442,9 @@ void RegisterAPIs(v8::Local<v8::Object> exports) {
   Nan::Set(exports,
            Nan::New("ugcUnsubscribe").ToLocalChecked(),
            Nan::New<v8::FunctionTemplate>(UGCUnsubscribe)->GetFunction());
+  Nan::Set(exports,
+           Nan::New("uGCSetItemTags").ToLocalChecked(),
+           Nan::New<v8::FunctionTemplate>(UGCSetItemTags)->GetFunction());
 }
 
 SteamAPIRegistry::Add X(RegisterAPIs);
