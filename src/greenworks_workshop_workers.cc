@@ -519,4 +519,100 @@ void UnsubscribePublishedFileWorker::OnUnsubscribeCompleted(
   is_completed_ = true;
 }
 
+
+
+
+
+void KubiWork::createItem()
+{
+	SteamAPICall_t hSteamAPICall = SteamUGC()->CreateItem(SteamUtils()->GetAppID(), k_EWorkshopFileTypeCommunity);
+	m_CreateItemCallResult.Set(hSteamAPICall, this, &KubiWork::getResultItem);
+}
+
+KubiWork::KubiWork(
+    const WorkshopFileProperties& properties,
+    Nan::Callback* success_callback,
+    Nan::Callback* error_callback,
+    Nan::Callback* process_callback
+  )
+    :properties_(properties),
+    success_callback_(success_callback),
+    error_callback_(error_callback),
+    process_callback_(process_callback) {
+      this->createItem();
+    }
+
+void KubiWork::getSubmitItemUpdateResult(SubmitItemUpdateResult_t *pCallback, bool bIOFailure)
+{
+  Nan::HandleScope scope;
+  v8::Local<v8::Value> argv[] = {
+    Nan::New(utils::uint64ToString(this->publishedFileId)).ToLocalChecked(),
+    Nan::New(utils::uint64ToString(pCallback->m_eResult)).ToLocalChecked()
+    };
+  success_callback_->Call(2,argv);
+}
+void KubiWork::getResultItem(CreateItemResult_t *pCallback, bool bIOFailure)
+{
+  Nan::HandleScope scope;
+	if (bIOFailure || !pCallback->m_eResult)
+	{
+		return;
+	}
+  publishedFileId = pCallback->m_nPublishedFileId;
+  UGCUpdateHandle_t ugc_update_handle = SteamUGC()->StartItemUpdate(SteamUtils()->GetAppID(), publishedFileId);
+	printf("PublishedFileId: %d\n", pCallback->m_nPublishedFileId);
+  SteamParamStringArray_t tags;
+  tags.m_nNumStrings = properties_.tags_scratch.size();
+  tags.m_ppStrings = reinterpret_cast<const char**>(&properties_.tags);
+  SteamUGC()->SetItemVisibility(ugc_update_handle,k_ERemoteStoragePublishedFileVisibilityPublic);
+
+  if(SteamUGC()->SetItemTitle(ugc_update_handle, properties_.title.c_str()))
+  {
+  }else{
+    v8::Local<v8::Value> argv[] = {
+      Nan::New("SetItemTitle F").ToLocalChecked()};
+    error_callback_->Call(1,argv);
+    return;
+  }
+  if(SteamUGC()->SetItemDescription(ugc_update_handle, properties_.description.c_str()))
+  {
+  }else{
+    v8::Local<v8::Value> argv[] = {
+      Nan::New("SetItemDescription F").ToLocalChecked()};
+    error_callback_->Call(1,argv);
+    return;
+  }
+
+  if(SteamUGC()->SetItemTags(ugc_update_handle, &tags))
+  {
+  }else{
+    v8::Local<v8::Value> argv[] = {
+      Nan::New("SetItemTags F").ToLocalChecked()};
+    error_callback_->Call(1,argv);
+    return;
+  }
+
+  if(SteamUGC()->SetItemPreview(ugc_update_handle, properties_.image_path.c_str()))
+  {
+  }else{
+    v8::Local<v8::Value> argv[] = {
+      Nan::New("SetItemPreview F").ToLocalChecked()};
+    error_callback_->Call(1,argv);
+    return;
+  }
+
+  if(SteamUGC()->SetItemContent(ugc_update_handle, properties_.file_path.c_str())){
+  }else{
+    v8::Local<v8::Value> argv[] = {
+      Nan::New("SetItemContent F").ToLocalChecked()};
+    error_callback_->Call(1,argv);
+    return;
+  }
+  SteamAPICall_t hSteamAPICall = SteamUGC()->SubmitItemUpdate(ugc_update_handle, NULL);
+  m_SubmitItemUpdateCallResult.Set(hSteamAPICall, this, &KubiWork::getSubmitItemUpdateResult);
+  v8::Local<v8::Value> argv[] = {
+      Nan::New(utils::uint64ToString(ugc_update_handle)).ToLocalChecked()};
+  process_callback_->Call(1,argv);
+}
+
 }  // namespace greenworks

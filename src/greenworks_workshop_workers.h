@@ -198,6 +198,29 @@ class UnsubscribePublishedFileWorker : public SteamCallbackAsyncWorker {
       RemoteStoragePublishedFileUnsubscribed_t> unsubscribe_call_result_;
 };
 
+class KubiWork {
+public:
+	void createItem();
+	void getResultItem(CreateItemResult_t *pCallback, bool bIOFailure);
+    void getSubmitItemUpdateResult(SubmitItemUpdateResult_t *pCallback, bool bIOFailure);
+    KubiWork(
+        const WorkshopFileProperties& properties,
+        Nan::Callback* success_callback,
+        Nan::Callback* error_callback,
+        Nan::Callback* process_callback);
+    PublishedFileId_t publishedFileId;
+    Nan::Callback* success_callback_;
+    Nan::Callback* error_callback_;
+    Nan::Callback* process_callback_;
+private:
+	CCallResult< KubiWork, CreateItemResult_t> m_CreateItemCallResult;
+    CCallResult< KubiWork, SubmitItemUpdateResult_t> m_SubmitItemUpdateCallResult;
+    WorkshopFileProperties properties_;
+    // 物品可见度 0 1 2
+    // k_ERemoteStoragePublishedFileVisibilityPublic
+};
+
+
 }  // namespace greenworks
 
 #endif  // SRC_GREENWORKS_WORKSHOP_WORKERS_H_

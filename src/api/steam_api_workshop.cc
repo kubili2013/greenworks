@@ -396,9 +396,9 @@ NAN_METHOD(UGCSetItemTags) {
   SteamParamStringArray_t tagss;
   tagss.m_nNumStrings = tags_scratch.size();
   tagss.m_ppStrings = reinterpret_cast<const char**>(&tags);
-  PublishedFileUpdateHandle_t update_handle =
-      SteamRemoteStorage()->CreatePublishedFileUpdateRequest(
-          published_file_id);
+  // PublishedFileUpdateHandle_t update_handle =
+  //    SteamRemoteStorage()->CreatePublishedFileUpdateRequest(
+  //        published_file_id);
   UGCUpdateHandle_t ugc_update_handle = SteamUGC()->StartItemUpdate(info[1]->Int32Value(), published_file_id);
   
   if(SteamUGC()->SetItemTags(ugc_update_handle, &tagss)){
@@ -406,6 +406,57 @@ NAN_METHOD(UGCSetItemTags) {
   }
   //info.GetReturnValue().Set(SteamRemoteStorage()->UpdatePublishedFileTags(update_handle, &tagss));
   info.GetReturnValue().Set(Nan::Undefined());
+}
+
+NAN_METHOD(UGCCreateItem) {
+  Nan::HandleScope scope;
+
+  if (info.Length() < 5 || !info[0]->IsArray() || !info[1]->IsString() ||
+      !info[2]->IsString() || !info[3]->IsString() || !info[4]->IsString()) {
+    THROW_BAD_ARGS("Bad arguments");
+  }
+  greenworks::WorkshopFileProperties properties;
+
+  v8::Local<v8::Array> tags_array = info[0].As<v8::Array>();
+  if (tags_array->Length() > greenworks::WorkshopFileProperties::MAX_TAGS) {
+    THROW_BAD_ARGS("The length of 'tags' must be less than 100.");
+  }
+  for (uint32_t i = 0; i < tags_array->Length(); ++i) {
+    if (!tags_array->Get(i)->IsString())
+      THROW_BAD_ARGS("Bad arguments");
+    v8::String::Utf8Value tag(tags_array->Get(i));
+    properties.tags_scratch.push_back(*tag);
+    properties.tags[i] = properties.tags_scratch.back().c_str();
+  }
+  properties.file_path = (*(v8::String::Utf8Value(info[1])));
+  properties.image_path = (*(v8::String::Utf8Value(info[2])));
+  properties.title = (*(v8::String::Utf8Value(info[3])));
+  properties.description = (*(v8::String::Utf8Value(info[4])));
+  Nan::Callback* success_callback =
+      new Nan::Callback(info[5].As<v8::Function>());
+  Nan::Callback* error_callback =
+      new Nan::Callback(info[6].As<v8::Function>());
+  Nan::Callback* process_callback =
+      new Nan::Callback(info[7].As<v8::Function>());  
+  new greenworks::KubiWork(properties,success_callback,error_callback,process_callback);
+  info.GetReturnValue().Set(Nan::Undefined());
+}
+
+NAN_METHOD(UGCGetItemUpdateProgress) {
+  Nan::HandleScope scope;
+  UGCUpdateHandle_t ugc_update_handle = utils::strToUint64(
+      *(v8::String::Utf8Value(info[0])));
+  uint64 punBytesProcessed; 
+  uint64 punBytesTotal; 
+  EItemUpdateStatus result =  SteamUGC()->GetItemUpdateProgress(ugc_update_handle,&punBytesProcessed,&punBytesTotal);
+  // printf("process:%d\n",punBytesProcessed);
+  // printf("total:%d\n",punBytesTotal);
+  // printf("status:%d\n",result);
+  v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+	Nan::Set(obj, Nan::New("process").ToLocalChecked(),Nan::New(utils::uint64ToString(punBytesProcessed)).ToLocalChecked());
+	Nan::Set(obj, Nan::New("total").ToLocalChecked(),Nan::New(utils::uint64ToString(punBytesTotal)).ToLocalChecked());
+  Nan::Set(obj, Nan::New("status").ToLocalChecked(),Nan::New(utils::uint64ToString(result)).ToLocalChecked());
+  info.GetReturnValue().Set(obj);
 }
 
 void RegisterAPIs(v8::Local<v8::Object> exports) {
@@ -445,6 +496,13 @@ void RegisterAPIs(v8::Local<v8::Object> exports) {
   Nan::Set(exports,
            Nan::New("uGCSetItemTags").ToLocalChecked(),
            Nan::New<v8::FunctionTemplate>(UGCSetItemTags)->GetFunction());
+  Nan::Set(exports,
+           Nan::New("uGCCreateItem").ToLocalChecked(),
+           Nan::New<v8::FunctionTemplate>(UGCCreateItem)->GetFunction());
+  Nan::Set(exports,
+           Nan::New("uGCGetItemUpdateProgress").ToLocalChecked(),
+           Nan::New<v8::FunctionTemplate>(UGCGetItemUpdateProgress)->GetFunction());
+           
 }
 
 SteamAPIRegistry::Add X(RegisterAPIs);
