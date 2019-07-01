@@ -11,7 +11,8 @@
   "scripts": {
     "cpplint": "python ./deps/cpplint/cpplint.py --extensions=h,cc src/* src/api/*",
     "compdb": "node-gyp configure -- -f ninja && ninja -C build/Release -t compdb cxx > compile_commands.json",
-    "rebuild": "node-gyp rebuild --target=5.0.2 --arch=ia32 --dist-url=https://atom.io/download/electron"
+    "rebuild32": "node-gyp rebuild --target=5.0.2 --arch=ia32 --dist-url=https://atom.io/download/electron",
+    "rebuild64": "node-gyp rebuild --target=5.0.2 --arch=x64 --dist-url=https://atom.io/download/electron"
   },
   "dependencies": {
     "nan": "^2.8.0"

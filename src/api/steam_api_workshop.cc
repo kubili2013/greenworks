@@ -374,6 +374,26 @@ NAN_METHOD(UGCUnsubscribe) {
   info.GetReturnValue().Set(Nan::Undefined());
 }
 
+/*************** 订阅 **************************/
+NAN_METHOD(UGCSubscribe) {
+  Nan::HandleScope scope;
+  if (info.Length() < 2 || !info[0]->IsString() || !info[1]->IsFunction()) {
+    THROW_BAD_ARGS("Bad arguments");
+  }
+  PublishedFileId_t subscribed_file_id = utils::strToUint64(
+      *(v8::String::Utf8Value(info[0])));
+  Nan::Callback* success_callback =
+      new Nan::Callback(info[1].As<v8::Function>());
+  Nan::Callback* error_callback = nullptr;
+
+  if (info.Length() > 2 && info[2]->IsFunction())
+    error_callback = new Nan::Callback(info[2].As<v8::Function>());
+
+  Nan::AsyncQueueWorker(new greenworks::SubscribePublishedFileWorker(
+      success_callback, error_callback, subscribed_file_id));
+  info.GetReturnValue().Set(Nan::Undefined());
+}
+
 NAN_METHOD(UGCSetItemTags) {
   Nan::HandleScope scope;
   // 获取发布id
@@ -447,7 +467,7 @@ NAN_METHOD(UGCGetItemUpdateProgress) {
   UGCUpdateHandle_t ugc_update_handle = utils::strToUint64(
       *(v8::String::Utf8Value(info[0])));
   uint64 punBytesProcessed; 
-  uint64 punBytesTotal; 
+  uint64 punBytesTotal;
   EItemUpdateStatus result =  SteamUGC()->GetItemUpdateProgress(ugc_update_handle,&punBytesProcessed,&punBytesTotal);
   // printf("process:%d\n",punBytesProcessed);
   // printf("total:%d\n",punBytesTotal);
@@ -458,6 +478,28 @@ NAN_METHOD(UGCGetItemUpdateProgress) {
   Nan::Set(obj, Nan::New("status").ToLocalChecked(),Nan::New(utils::uint64ToString(result)).ToLocalChecked());
   info.GetReturnValue().Set(obj);
 }
+NAN_METHOD(GetItemInstallInfo) {
+  Nan::HandleScope scope;
+  PublishedFileId_t published_file_id = utils::strToUint64(
+      *(v8::String::Utf8Value(info[0])));
+  uint64 punSizeOnDisk;
+  uint32 cchFolderSize;
+  uint32 punTimeStamp;
+  char *pchFolder;
+  bool flag = SteamUGC()->GetItemInstallInfo(published_file_id,&punSizeOnDisk,pchFolder,cchFolderSize,&punTimeStamp);
+  // printf("process:%d\n",punBytesProcessed);
+  // printf("total:%d\n",punBytesTotal);
+  // printf("status:%d\n",result);
+  std::string folder = pchFolder;
+  v8::Local<v8::Object> obj = Nan::New<v8::Object>();
+	Nan::Set(obj, Nan::New("punSizeOnDisk").ToLocalChecked(),Nan::New(utils::uint64ToString(punSizeOnDisk)).ToLocalChecked());
+	Nan::Set(obj, Nan::New("cchFolderSize").ToLocalChecked(),Nan::New(utils::uint64ToString(cchFolderSize)).ToLocalChecked());
+  Nan::Set(obj, Nan::New("punTimeStamp").ToLocalChecked(),Nan::New(utils::uint64ToString(punTimeStamp)).ToLocalChecked());
+  Nan::Set(obj, Nan::New("pchFolder").ToLocalChecked(),Nan::New(folder).ToLocalChecked());
+  Nan::Set(obj, Nan::New("flag").ToLocalChecked(),Nan::New(flag));
+  info.GetReturnValue().Set(obj);
+}
+
 
 void RegisterAPIs(v8::Local<v8::Object> exports) {
   InitUgcMatchingTypes(exports);
@@ -502,7 +544,12 @@ void RegisterAPIs(v8::Local<v8::Object> exports) {
   Nan::Set(exports,
            Nan::New("uGCGetItemUpdateProgress").ToLocalChecked(),
            Nan::New<v8::FunctionTemplate>(UGCGetItemUpdateProgress)->GetFunction());
-           
+  Nan::Set(exports,
+           Nan::New("uGCSubscribe").ToLocalChecked(),
+           Nan::New<v8::FunctionTemplate>(UGCSubscribe)->GetFunction());
+  Nan::Set(exports,
+           Nan::New("getItemInstallInfo").ToLocalChecked(),
+           Nan::New<v8::FunctionTemplate>(GetItemInstallInfo)->GetFunction());       
 }
 
 SteamAPIRegistry::Add X(RegisterAPIs);
